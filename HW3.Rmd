@@ -1,0 +1,222 @@
+---
+title: "HW3 - Quiz Bowl Dataset Classification"
+author: "RR"
+date: "November 13, 2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+#Question 1
+
+##Adding Libraries
+```{r}
+library('e1071')
+library('cwhmisc')
+library('rpart')
+library('nnet')
+library('tidyverse')
+```
+
+##Functions Record Performance and Paren_Match
+```{r}
+record_performance <- function( model_type, df, name, model, test) {
+if (model_type=="svm"){
+pred <- predict(model, test)
+}
+else{
+pred <- predict(model, newdata=test,type="class")
+}
+
+table <- table(pred = pred, true=test$corr)
+df <- rbind(df, data.frame(model=c(name), score=c(classAgreement(table)$diag)))
+return(df)
+}
+
+paren_match <- function(page, text) {
+  start <- cpos(page, "(")
+  end <- cpos(page, ")")
+  if (!is.na(start) && !is.na(end)) {
+    search <- substring(page, start + 1, end - 1)
+    return(grepl(tolower(search), tolower(text), fixed=TRUE))
+  } else {
+    return(FALSE)
+  }
+}
+```
+
+##Importing Files, Creating Features 
+```{r}
+setwd('/Users/rashm/Desktop/DID - HW3')
+full <- read.csv("qb.train.csv")
+full$obs_len <- apply(full, 1, function(x) {nchar(x['text'])})
+full$scale_len <- scale(full$obs_len)
+full$scale_score <- scale(full$body_score)
+full$paren_match <- apply(full, 1, function(x) {paren_match(x['page'], x['text'])})
+full$log_links <- scale(log(as.numeric(full$inlinks) + 1))
+index <- 1:nrow(full)
+testindex <- sample(index, trunc(length(index)/5))
+testset <- full[testindex,]
+trainset <- full[-testindex,]
+```
+
+##Baselining
+```{r}
+mfc_baseline <- sum(testset$corr == "False") / nrow(testset)
+```
+
+#Question 2a
+
+##Logit
+```{r}
+lg_results <- data.frame(model=c("MFC"), score=c(mfc_baseline))
+```
+
+##Results for Logit
+```{r}
+lg_results <- record_performance('logit', lg_results , "body_score", multinom(corr ~ body_score, data=trainset, family=binomial), testset)
+lg_results <- record_performance('logit', lg_results , "scale_score", multinom(corr ~ scale_score, data=trainset, family=binomial), testset)
+lg_results <- record_performance('logit', lg_results , "obs_len", multinom(corr ~ obs_len, data=trainset, family=binomial), testset)
+lg_results <- record_performance('logit', lg_results , "paren_match", multinom(corr ~ paren_match, data=trainset, family=binomial), testset)
+lg_results <- record_performance('logit', lg_results , "inlinks", multinom(corr ~ inlinks, data=trainset, family=binomial), testset)
+lg_results <- record_performance('logit', lg_results , "log_links", multinom(corr ~ log_links, data=trainset, family=binomial), testset)
+lg_results <- record_performance('logit', lg_results , "tournaments", multinom(corr ~ tournaments, data=trainset, family=binomial), testset)
+lg_results <- record_performance('logit', lg_results , "scale_score + obs_len", multinom(corr ~ scale_score+obs_len, data=trainset, family=binomial), testset)
+lg_results <- record_performance('logit', lg_results , "paren_match + obs_len", multinom(corr ~ paren_match + obs_len, data=trainset, family=binomial), testset)
+lg_results <- record_performance('logit', lg_results , "scale_score + paren_match", multinom(corr ~ scale_score + paren_match, data=trainset, family=binomial), testset)
+lg_results <- record_performance('logit', lg_results , "scale_len + scale_score + log_links + paren_match", multinom(corr ~ scale_len + scale_score + log_links + paren_match, data=trainset, family=binomial), testset)
+lg_results <- record_performance('logit', lg_results , "scale_len + scale_score + paren_match", multinom(corr ~ scale_len + scale_score + paren_match, data=trainset, family=binomial), testset)
+lg_results
+```
+
+##SVM
+```{r}
+svm_results <- data.frame(model=c("MFC"), score=c(mfc_baseline))
+```
+
+##Results for SVM
+```{r}
+svm_results <- record_performance('svm', svm_results , "body_score", svm(corr ~ body_score, data=trainset), testset)
+svm_results <- record_performance('svm', svm_results , "scale_score",svm(corr ~ scale_score, data=trainset), testset)
+svm_results <- record_performance('svm', svm_results , "obs_len", svm(corr ~ obs_len, data=trainset), testset)
+svm_results <- record_performance('svm', svm_results , "paren_match", svm(corr ~ paren_match, data=trainset), testset)
+svm_results <- record_performance('svm', svm_results , "inlinks", svm(corr ~ inlinks, data=trainset), testset)
+svm_results <- record_performance('svm', svm_results , "log_links", svm(corr ~ log_links, data=trainset), testset)
+svm_results <- record_performance('svm', svm_results , "tournaments", svm(corr ~ tournaments, data=trainset), testset)
+svm_results <- record_performance('svm', svm_results , "scale_score + obs_len", svm(corr ~ scale_score+obs_len, data=trainset), testset)
+svm_results <- record_performance('svm', svm_results , "paren_match + obs_len", svm(corr ~ paren_match + obs_len, data=trainset), testset)
+svm_results <- record_performance('svm', svm_results , "scale_score + paren_match", svm(corr ~ scale_score + paren_match, data=trainset), testset)
+svm_results <- record_performance('svm', svm_results , "scale_len + scale_score + log_links + paren_match", svm(corr ~ scale_len + scale_score + log_links + paren_match, data=trainset), testset)
+svm_results <- record_performance('svm', svm_results , "scale_len + scale_score + paren_match", svm(corr ~ scale_len + scale_score + paren_match, data=trainset), testset)
+svm_results
+```
+
+##Decision Tree
+```{r}
+dt_results <- data.frame(model=c("MFC"), score=c(mfc_baseline))
+```
+
+##Results for Decison Tree
+```{r}
+dt_results <- record_performance("tree", dt_results , "body_score", rpart(corr ~ body_score, data=trainset,method="class"), testset)
+dt_results <- record_performance('tree', dt_results , "scale_score",rpart(corr ~ scale_score, data=trainset,method="class"), testset)
+dt_results <- record_performance('tree', dt_results , "obs_len", rpart(corr ~ obs_len, data=trainset,method="class"), testset)
+dt_results <- record_performance('tree', dt_results , "paren_match", rpart(corr ~ paren_match, data=trainset,method="class"), testset)
+dt_results <- record_performance('tree', dt_results , "inlinks", rpart(corr ~ inlinks, data=trainset,method="class"), testset)
+dt_results <- record_performance('tree', dt_results , "log_links", rpart(corr ~ log_links, data=trainset,method="class"), testset)
+dt_results <- record_performance('tree', dt_results , "tournaments", rpart(corr ~ tournaments, data=trainset,method="class"), testset)
+dt_results <- record_performance('tree', dt_results , "scale_score + obs_len", rpart(corr ~ scale_score+obs_len, data=trainset,method="class"), testset)
+dt_results <- record_performance('tree', dt_results , "paren_match + obs_len", rpart(corr ~ paren_match + obs_len, data=trainset,method="class"), testset)
+dt_results <- record_performance('tree', dt_results , "scale_score + paren_match", rpart(corr ~ scale_score + paren_match, data=trainset,method="class"), testset)
+dt_results <- record_performance('tree', dt_results , "scale_len + scale_score + log_links + paren_match", rpart(corr ~ scale_len + scale_score + log_links + paren_match, data=trainset,method="class"), testset)
+dt_results <- record_performance('tree', dt_results , "scale_len + scale_score + paren_match", rpart(corr ~ scale_len + scale_score + paren_match, data=trainset,method="class"), testset)
+dt_results
+```
+
+#Question 2b
+```{r}
+svm_model_testpred <- svm(corr ~ obs_len+scale_score,data=trainset)
+testset$corr_pred <- predict(svm_model_testpred, testset)
+addmargins(table(testset$corr_pred, testset$corr))
+```
+
+There are a large number of false negatives and false positives in the data. This is the observable pattern from the confusion matrix.
+
+#Question 3
+
+##Creating New Feature and Splitting Train into a Trainset and Testset
+```{r}
+full$log_body_score <- scale(log(as.numeric(full$body_score) + 1))
+index <- 1:nrow(full)
+testindex <- sample(index, trunc(length(index)/5))
+testset <- full[testindex,]
+trainset <- full[-testindex,]
+```
+
+##SVM for Log_Body_Score
+```{r}
+mfc_baseline <- sum(testset$corr == "False") / nrow(testset)
+svm_newFeature_results <- data.frame(model=c("MFC"), score=c(mfc_baseline))
+svm_newFeature_results <- record_performance('svm', svm_newFeature_results , "log_body_score", svm(corr ~ log_body_score, data=trainset), testset)
+svm_newFeature_results <- record_performance("svm",svm_newFeature_results,"log_body_score + obs_len + scale_score", svm(corr ~ log_body_score+obs_len+scale_score,data=trainset),testset)
+svm_newFeature_results <- record_performance("svm",svm_newFeature_results,"log_body_score + obs_len + scale_score + paren_match", svm(corr ~ log_body_score+obs_len+scale_score+paren_match,data=trainset),testset)
+svm_newFeature_results
+```
+##Plot of NEW feature against BEST old feature
+```{r}
+a <- max(svm_results$score)
+b <- max(svm_newFeature_results$score)
+values <- c(a,b)
+names <- c("Old Feature SVM Score", "New Feature SVM Score")
+df <- data.frame(names,values)
+qplot(df$names,df$values,data = df)
+```
+
+#4
+
+```{r}
+fulltest <- read.csv("qb.test.csv")
+fulltest$obs_len <- apply(fulltest, 1, function(x) {nchar(x['text'])})
+fulltest$scale_len <- scale(fulltest$obs_len)
+fulltest$scale_score <- scale(fulltest$body_score)
+fulltest$paren_match <- apply(fulltest, 1, function(x) {paren_match(x['page'], x['text'])})
+fulltest$log_links <- scale(log(as.numeric(fulltest$inlinks) + 1))
+fulltest$log_body_score <- scale(log(as.numeric(fulltest$body_score) + 1))
+```
+
+##Predicting Corr Values in Test Data  
+```{r}
+svm_model <- svm(corr ~ log_body_score+obs_len+scale_score,data=trainset)
+fulltest$corr <- predict(svm_model, fulltest)
+```
+
+##Kaggle Submission File
+```{r}
+sub_df <- data.frame(row=fulltest$row, corr=fulltest$corr)
+sub_df$corr<-factor(sub_df$corr, levels = c('True','False'), labels = c(1,0))
+write.csv(sub_df, file = "kaggleSubmission.csv")
+```
+
+#4a
+
+username: rashmir 
+score: 0.80451
+
+#4b
+
+##Error Analysis
+```{r}
+guess <- read.csv("C:/Users/rashm/Desktop/qb.guess.csv")
+guess$actual <- fulltest$corr
+guess$corr<-factor(guess$corr, levels = c('TRUE','FALSE'), labels = c(1,0))
+guess$actual<-factor(guess$actual, levels = c('True','False'), labels = c(1,0))
+addmargins(table(guess$corr, guess$actual))
+guess$row <- NULL
+conf_mat_tab <- table(lapply(guess, factor, levels = seq(1,0)))
+library(caret)
+confusionMatrix(conf_mat_tab)
+```
+
+From the confusion matrix it is evident we have a large number of false negatives but NO false positives. Hence, the model performed well with a decent accurary rate.
+This can be observed from the guess table on observing the corr and actual coloums. While actual is True/1, corr value that the model predicted is False/0.
+
